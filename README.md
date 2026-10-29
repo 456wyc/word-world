@@ -2,6 +2,10 @@
 
 划词查词/翻译 + 生词本 + 网页随机复习的 Chrome/Edge 扩展（Manifest V3）。
 
+- 项目主页：<https://yinchuanwang.github.io/word-world/>
+- 隐私政策：[PRIVACY.md](PRIVACY.md)
+- 许可证：MIT
+
 ## 开发
 
 ```bash

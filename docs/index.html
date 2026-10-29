@@ -1,0 +1,289 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Word World — 划词查词、生词本与网页随机复习</title>
+    <meta
+      name="description"
+      content="Word World 是 Chrome / Edge 扩展：网页划词即查词翻译，结果自动收进生词本，并按间隔重复在浏览时以字幕条、弹幕或角落卡片浮现复习。数据只存本地，无遥测。"
+    />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <header class="nav">
+      <div class="wrap nav-inner">
+        <a class="brand" href="./index.html">
+          <span class="brand-mark">W</span>
+          <span>Word World</span>
+        </a>
+        <nav class="nav-links">
+          <a href="#features">功能</a>
+          <a href="#how">原理</a>
+          <a href="#shots">截图</a>
+          <a href="#privacy">隐私</a>
+          <a href="#faq">常见问题</a>
+          <a class="nav-cta" id="install-link" href="#install">安装</a>
+        </nav>
+      </div>
+    </header>
+
+    <main>
+      <section class="hero">
+        <div class="wrap hero-inner">
+          <div class="hero-text">
+            <span class="pill">免费 · 开源 · 数据只存本地</span>
+            <h1>划词即查词，<br />生词在浏览时自己找上你</h1>
+            <p class="lead">
+              选中网页上的任意文字，点一下「译」图标就能看到释义、音标、例句与中文译文；结果自动收进生词本，之后按间隔重复算法，在你继续浏览时以字幕条、弹幕或角落卡片浮现复习。
+            </p>
+            <div class="hero-actions" id="install">
+              <a class="btn btn-primary" id="store-link" href="https://chromewebstore.google.com/">
+                添加到 Chrome
+              </a>
+              <a class="btn" id="repo-link" href="https://github.com/yinchuanwang/word-world">
+                查看源码
+              </a>
+            </div>
+            <p class="hero-note">
+              支持 Chrome / Edge（Chrome 110+）。也可以
+              <a href="#faq">从源码加载</a>
+              使用，无需商店。
+            </p>
+          </div>
+
+          <div class="hero-preview" aria-hidden="true">
+            <div class="browser">
+              <div class="browser-bar">
+                <i></i><i></i><i></i>
+                <span>example.com/article</span>
+              </div>
+              <div class="browser-body">
+                <p>
+                  The researchers published the full
+                  <mark>metadata</mark>
+                  along with the paper, which makes the dataset far easier to reuse.
+                </p>
+                <div class="lookup-card">
+                  <div class="lookup-head">
+                    <strong>metadata</strong>
+                    <span>/ˈmetədeɪtə/</span>
+                  </div>
+                  <ul>
+                    <li><em>n.</em> 元数据；描述数据的数据</li>
+                    <li><em>n.</em> 关于信息的信息</li>
+                  </ul>
+                  <p class="lookup-example">
+                    The file stores <b>metadata</b> such as author and creation date.
+                  </p>
+                  <div class="lookup-trans">元数据，元资料</div>
+                  <div class="lookup-foot">已收录 · 第 2 次查询</div>
+                </div>
+              </div>
+            </div>
+            <div class="subtitle-bar">
+              <span class="sub-word">resilient</span>
+              <span class="sub-phon">/rɪˈzɪliənt/</span>
+              <span class="sub-trans">有韧性的；能快速恢复的</span>
+              <span class="sub-rate"><i class="ok"></i>认识 <i class="eh"></i>模糊 <i class="no"></i>不认识</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="features" class="section">
+        <div class="wrap">
+          <h2>功能</h2>
+          <p class="section-lead">查词、收录、复习，一条链路都在浏览器里完成。</p>
+          <div class="grid">
+            <article class="card">
+              <h3>划词即查</h3>
+              <p>选中单词看音标、词性释义、例句与中文译义；选中整句看整句译文，支持 Web Speech 发音。</p>
+            </article>
+            <article class="card">
+              <h3>自动收录</h3>
+              <p>查过的词自动进入本地生词本，重复查询只累加次数，不会产生重复条目。</p>
+            </article>
+            <article class="card">
+              <h3>三种复习形态</h3>
+              <p>底部字幕条、飘过弹幕、右下角角落卡片，可设置间隔（60 秒–30 分钟）与停留时长。</p>
+            </article>
+            <article class="card">
+              <h3>一键评分</h3>
+              <p>认识 / 模糊 / 不认识，按简化 SRS 推进复习间隔，并提示下次复习时间。</p>
+            </article>
+            <article class="card">
+              <h3>生词本管理</h3>
+              <p>搜索、按类型筛选、排序、添加备注、删除，支持导入导出 JSON 备份。</p>
+            </article>
+            <article class="card">
+              <h3>数据源可选</h3>
+              <p>默认免费词典 + 翻译接口；也可填任意 OpenAI 兼容接口，AI 失败自动回退免费接口。</p>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section id="how" class="section alt">
+        <div class="wrap">
+          <h2>工作原理</h2>
+          <p class="section-lead">后台 Service Worker 是唯一的数据与网络网关，网页只负责显示。</p>
+          <ol class="steps">
+            <li>
+              <span class="step-no">1</span>
+              <div>
+                <h3>网页划词</h3>
+                <p>Content script 在 Shadow DOM 中渲染划词图标与卡片，和页面样式互不影响。</p>
+              </div>
+            </li>
+            <li>
+              <span class="step-no">2</span>
+              <div>
+                <h3>后台查询并收录</h3>
+                <p>Service Worker 请求词典/翻译或 AI 接口，结果写入本地生词本并做 7 天缓存。</p>
+              </div>
+            </li>
+            <li>
+              <span class="step-no">3</span>
+              <div>
+                <h3>浏览时浮现复习</h3>
+                <p>按 SRS 阶梯选词，在设定的间隔后以所选形态浮现，评分后推进下一次复习时间。</p>
+              </div>
+            </li>
+          </ol>
+        </div>
+      </section>
+
+      <section id="shots" class="section">
+        <div class="wrap">
+          <h2>界面</h2>
+          <p class="section-lead">下面是 CSS 绘制的示意预览；正式上架前会替换为真实截图。</p>
+          <div class="shots">
+            <figure class="shot">
+              <div class="shot-frame popup-mock">
+                <div class="pm-head"><strong>Word World</strong><span class="pm-badge">待复习 3</span></div>
+                <div class="pm-stats"><div><b>5</b><span>今日已复习</span></div><div><b>2</b><span>今日新增</span></div></div>
+                <div class="pm-row"><span>复习浮层</span><i class="sw on"></i></div>
+                <div class="pm-row"><span>在本站暂停</span><i class="sw"></i></div>
+                <div class="pm-sub">最近收录</div>
+                <div class="pm-item"><b>metadata</b><span>元数据</span></div>
+                <div class="pm-item"><b>resilient</b><span>有韧性的</span></div>
+                <div class="pm-item"><b>Introduction</b><span>介绍；导论</span></div>
+              </div>
+              <figcaption>popup：今日统计、快捷开关与最近收录</figcaption>
+            </figure>
+
+            <figure class="shot">
+              <div class="shot-frame overlay-mock">
+                <div class="om-page">
+                  <span></span><span></span><span></span><span></span>
+                </div>
+                <div class="om-sub">
+                  <div class="om-progress"></div>
+                  <div class="om-line">
+                    <b>ambiguous</b><i>/æmˈbɪɡjuəs/</i><em>模棱两可的</em>
+                  </div>
+                </div>
+                <div class="om-card">
+                  <b>stakeholder</b>
+                  <p>利益相关方；参与方</p>
+                  <div class="om-rate"><i class="ok"></i>认识 <i class="eh"></i>模糊 <i class="no"></i>不认识</div>
+                </div>
+              </div>
+              <figcaption>复习浮层：字幕条与角落卡片两种形态</figcaption>
+            </figure>
+
+            <figure class="shot">
+              <div class="shot-frame manager-mock">
+                <div class="mm-head"><strong>生词本</strong><span>共 12 条 · 待复习 3 条</span></div>
+                <div class="mm-bar"><span class="mm-search">搜索单词、释义或备注…</span><span class="mm-sel">全部</span></div>
+                <div class="mm-item"><span class="k k-w">词</span><b>metadata</b><span class="c due">待复习</span><span class="c">阶段 1</span><span class="c">查 2 次</span><span class="c host">docs.example.com</span></div>
+                <div class="mm-item"><span class="k k-s">句</span><b>Chroma is the open-source data infra…</b><span class="c">1 天后</span><span class="c">新词</span><span class="c">查 1 次</span><span class="c host">docs.example.com</span></div>
+                <div class="mm-item"><span class="k k-w">词</span><b>Introduction</b><span class="c due">待复习</span><span class="c">新词</span><span class="c">查 3 次</span><span class="c host">docs.example.com</span></div>
+              </div>
+              <figcaption>生词本：搜索、筛选、备注与导入导出</figcaption>
+            </figure>
+          </div>
+        </div>
+      </section>
+
+      <section id="privacy" class="section alt">
+        <div class="wrap">
+          <h2>隐私</h2>
+          <p class="section-lead">这个扩展不认识你是谁，也不需要知道。</p>
+          <div class="grid two">
+            <article class="card">
+              <h3>只存本地</h3>
+              <p>生词、设置、缓存与 API Key 都在本机 <code>chrome.storage.local</code>，没有账号、没有云同步。</p>
+            </article>
+            <article class="card">
+              <h3>没有遥测</h3>
+              <p>不含任何统计、崩溃上报或行为追踪代码，也不会把数据分享给第三方。</p>
+            </article>
+            <article class="card">
+              <h3>只在你划词时联网</h3>
+              <p>请求仅发往免费词典/翻译接口，或你在设置里自己填写的 AI 接口，内容是选中的文本。</p>
+            </article>
+            <article class="card">
+              <h3>密钥不外泄</h3>
+              <p>API Key 只保存在本机，导出 JSON 时会被剔除，也不会传入网页上下文。</p>
+            </article>
+          </div>
+          <p class="center-note">
+            完整说明见
+            <a id="privacy-link" href="https://github.com/yinchuanwang/word-world/blob/main/PRIVACY.md">隐私政策</a>。
+          </p>
+        </div>
+      </section>
+
+      <section id="faq" class="section">
+        <div class="wrap narrow">
+          <h2>常见问题</h2>
+          <details>
+            <summary>怎么从源码加载？</summary>
+            <p>
+              克隆仓库后执行 <code>npm install</code>、<code>npm run icons</code>、<code>npm run build</code>，
+              然后在 <code>chrome://extensions</code> 开启开发者模式 →「加载已解压的扩展程序」→ 选择 <code>dist/</code>。
+            </p>
+          </details>
+          <details>
+            <summary>免费接口不可用怎么办？</summary>
+            <p>
+              Google 公开翻译端点在部分网络环境不可达，扩展会自动回退 MyMemory；更稳定的做法是在设置里切换到 AI 模式，
+              填写任意 OpenAI 兼容的 Base URL、API Key 与模型。
+            </p>
+          </details>
+          <details>
+            <summary>会不会打扰我浏览？</summary>
+            <p>
+              默认每 3 分钟最多一次，且页面隐藏、输入框聚焦、有选中文本、全屏播放时都不会弹出；
+              也可以对指定站点永久暂停，或在 popup 里一键关闭。
+            </p>
+          </details>
+          <details>
+            <summary>支持哪些浏览器？</summary>
+            <p>只支持 Chrome / Edge（Chrome 110+）。<code>chrome://</code> 页面、扩展商店与 PDF 阅读器页面无法注入。</p>
+          </details>
+          <details>
+            <summary>数据能导出吗？</summary>
+            <p>可以。设置页与生词本页都支持导出 JSON（含词条与设置），并可再导入回来，导入支持合并模式。</p>
+          </details>
+        </div>
+      </section>
+    </main>
+
+    <footer class="footer">
+      <div class="wrap footer-inner">
+        <div>
+          <strong>Word World</strong>
+          <p>划词查词翻译，生词本与网页复习 · MIT License</p>
+        </div>
+        <nav>
+          <a id="repo-link-2" href="https://github.com/yinchuanwang/word-world">GitHub</a>
+          <a id="privacy-link-2" href="https://github.com/yinchuanwang/word-world/blob/main/PRIVACY.md">隐私政策</a>
+          <a href="https://github.com/yinchuanwang/word-world/blob/main/README.md">使用说明</a>
+        </nav>
+      </div>
+    </footer>
+  </body>
+</html>

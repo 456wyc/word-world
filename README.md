@@ -28,6 +28,17 @@ npm run typecheck
 
 API Key 仅保存在本机 `chrome.storage.local`，不会出现在导出文件中，也没有任何遥测。Google 公开端点在部分网络环境不可达，可在设置中改用 AI。
 
+## 发布
+
+商店上架文案、截图清单见 [docs/store-listing.md](docs/store-listing.md)，隐私政策见 [PRIVACY.md](PRIVACY.md)。
+
+```bash
+npm run build
+# 打包 dist 内容（注意不要多套一层 dist/ 目录）
+```
+
+上传至 [Chrome 网上应用店开发者后台](https://chrome.google.com/webstore/devconsole)，审核通常需要 1–3 个工作日。
+
 ## 已知限制
 
 - 只支持 Chrome / Edge；`chrome://`、扩展商店、PDF 阅读器页面不注入

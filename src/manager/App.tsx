@@ -99,111 +99,97 @@ export function App() {
   }
 
   return (
-    <div className="ww-page ww-manager">
-      <header className="ww-manager-head">
-        <div>
-          <h1>生词本</h1>
-          <p className="ww-hint">
-            共 {entries.length} 条 · 当前列表待复习 {dueCount} 条
-          </p>
-        </div>
-        <div className="ww-actions">
-          <button className="ww-btn" onClick={() => void exportData()}>
-            导出
-          </button>
-          <button className="ww-btn" onClick={() => fileRef.current?.click()}>
-            导入
-          </button>
+    <div className="ww-manager">
+      <div className="ww-card">
+        <header className="ww-manager-head">
+          <div>
+            <h1>生词本</h1>
+            <p className="ww-hint">
+              共 {entries.length} 条 · 待复习 {dueCount} 条
+            </p>
+          </div>
+          <div className="ww-actions">
+            <button className="ww-btn" onClick={() => void exportData()}>
+              导出
+            </button>
+            <button className="ww-btn" onClick={() => fileRef.current?.click()}>
+              导入
+            </button>
+            <input
+              ref={fileRef}
+              type="file"
+              accept="application/json,.json"
+              hidden
+              onChange={(event) => {
+                const file = event.target.files?.[0];
+                if (file) void importData(file);
+                event.target.value = '';
+              }}
+            />
+            <button className="ww-btn ww-btn-danger" onClick={() => void clearAll()}>
+              清空
+            </button>
+          </div>
+        </header>
+
+        {message && <div className="ww-message">{message}</div>}
+
+        <div className="ww-toolbar">
           <input
-            ref={fileRef}
-            type="file"
-            accept="application/json,.json"
-            hidden
-            onChange={(event) => {
-              const file = event.target.files?.[0];
-              if (file) void importData(file);
-              event.target.value = '';
-            }}
+            className="ww-search"
+            placeholder="搜索单词、释义或备注…"
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
           />
-          <button className="ww-btn ww-btn-danger" onClick={() => void clearAll()}>
-            清空
-          </button>
+          <select value={filter} onChange={(event) => setFilter(event.target.value as Filter)}>
+            <option value="all">全部</option>
+            <option value="word">单词</option>
+            <option value="sentence">句子</option>
+            <option value="due">待复习</option>
+          </select>
+          <select value={sort} onChange={(event) => setSort(event.target.value as WordSort)}>
+            <option value="created">按创建时间</option>
+            <option value="due">按到期时间</option>
+            <option value="lookups">按查询次数</option>
+          </select>
         </div>
-      </header>
 
-      {message && <div className="ww-message">{message}</div>}
-
-      <div className="ww-toolbar">
-        <input
-          className="ww-search"
-          placeholder="搜索单词、释义或备注"
-          value={query}
-          onChange={(event) => setQuery(event.target.value)}
-        />
-        <select value={filter} onChange={(event) => setFilter(event.target.value as Filter)}>
-          <option value="all">全部</option>
-          <option value="word">单词</option>
-          <option value="sentence">句子</option>
-          <option value="due">待复习</option>
-        </select>
-        <select value={sort} onChange={(event) => setSort(event.target.value as WordSort)}>
-          <option value="created">按创建时间</option>
-          <option value="due">按到期时间</option>
-          <option value="lookups">按查询次数</option>
-        </select>
-      </div>
-
-      {entries.length === 0 ? (
-        <div className="ww-empty-state">
-          <p>没有匹配的词条。</p>
-          <p className="ww-hint">去网页上划词查词，结果会自动收录到这里。</p>
-        </div>
-      ) : (
-        <table className="ww-table">
-          <thead>
-            <tr>
-              <th>词条</th>
-              <th>释义</th>
-              <th>阶段</th>
-              <th>下次复习</th>
-              <th>查询</th>
-              <th>来源</th>
-              <th />
-            </tr>
-          </thead>
-          <tbody>
+        {entries.length === 0 ? (
+          <div className="ww-empty-state">
+            <p className="ww-empty-title">没有匹配的词条</p>
+            <p className="ww-hint">去网页上划词查词，结果会自动收录到这里。</p>
+          </div>
+        ) : (
+          <ul className="ww-list">
             {entries.map((entry) => {
-              const host = hostFromUrl(entry.sourceUrl) ?? '—';
               const isExpanded = expanded === entry.id;
               return (
-                <FragmentRow
-                  key={entry.id}
-                  entry={entry}
-                  host={host}
-                  expanded={isExpanded}
-                  onToggle={() => setExpanded(isExpanded ? null : entry.id)}
-                  onSaveNote={(note) => void saveNote(entry, note)}
-                  onDelete={() => void removeEntry(entry)}
-                />
+                <li key={entry.id} className={`ww-item ${isExpanded ? 'ww-item-open' : ''}`}>
+                  <EntryRow
+                    entry={entry}
+                    expanded={isExpanded}
+                    onToggle={() => setExpanded(isExpanded ? null : entry.id)}
+                    onSaveNote={(note) => void saveNote(entry, note)}
+                    onDelete={() => void removeEntry(entry)}
+                  />
+                </li>
               );
             })}
-          </tbody>
-        </table>
-      )}
+          </ul>
+        )}
+      </div>
     </div>
   );
 }
 
-function FragmentRow({
+function EntryRow({
   entry,
-  host,
   expanded,
   onToggle,
   onSaveNote,
   onDelete,
 }: {
   entry: Entry;
-  host: string;
   expanded: boolean;
   onToggle: () => void;
   onSaveNote: (note: string) => void;
@@ -212,23 +198,37 @@ function FragmentRow({
   const [note, setNote] = useState(entry.note ?? '');
   useEffect(() => setNote(entry.note ?? ''), [entry.note]);
 
+  const host = hostFromUrl(entry.sourceUrl);
+  const due = entry.srs.dueAt <= Date.now();
+  const stageLabel = entry.srs.stage === 0 ? '新词' : `阶段 ${entry.srs.stage}`;
+
   return (
     <>
-      <tr className="ww-table-row" onClick={onToggle}>
-        <td>
+      <div
+        className="ww-item-main"
+        onClick={onToggle}
+        role="button"
+        tabIndex={0}
+        onKeyDown={(event) => {
+          if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault();
+            onToggle();
+          }
+        }}
+      >
+        <div className="ww-item-top">
           <span className={`ww-kind ww-kind-${entry.kind}`}>
             {entry.kind === 'word' ? '词' : '句'}
           </span>
-          <strong>{entry.text}</strong>
-        </td>
-        <td className="ww-cell-truncate">{entry.translation || '—'}</td>
-        <td>{entry.srs.stage}</td>
-        <td>{formatNextReview(entry.srs.dueAt, Date.now())}</td>
-        <td>{entry.lookups}</td>
-        <td>{host}</td>
-        <td>
+          <strong className="ww-item-word">{entry.text}</strong>
+          <span className={`ww-due ${due ? 'ww-due-now' : ''}`}>
+            {due ? '待复习' : formatNextReview(entry.srs.dueAt, Date.now())}
+          </span>
+          <span className="ww-chip">{stageLabel}</span>
+          <span className="ww-chip">查 {entry.lookups} 次</span>
+          {host && <span className="ww-host">{host}</span>}
           <button
-            className="ww-btn ww-btn-plain"
+            className="ww-del"
             onClick={(event) => {
               event.stopPropagation();
               onDelete();
@@ -236,44 +236,42 @@ function FragmentRow({
           >
             删除
           </button>
-        </td>
-      </tr>
+        </div>
+        <div className="ww-item-translation">{entry.translation || '—'}</div>
+      </div>
+
       {expanded && (
-        <tr className="ww-detail-row">
-          <td colSpan={7}>
-            <div className="ww-detail">
-              {entry.context && (
-                <p>
-                  <span className="ww-detail-label">上下文</span>
-                  {entry.context}
-                </p>
-              )}
-              {entry.example && (
-                <p>
-                  <span className="ww-detail-label">例句</span>
-                  {entry.example}
-                </p>
-              )}
-              {entry.sourceUrl && (
-                <p>
-                  <span className="ww-detail-label">来源</span>
-                  <a href={entry.sourceUrl} target="_blank" rel="noreferrer">
-                    {entry.sourceTitle || entry.sourceUrl}
-                  </a>
-                </p>
-              )}
-              <label className="ww-note">
-                备注
-                <input
-                  value={note}
-                  onChange={(event) => setNote(event.target.value)}
-                  onBlur={() => onSaveNote(note)}
-                  placeholder="记点什么，方便以后回忆"
-                />
-              </label>
-            </div>
-          </td>
-        </tr>
+        <div className="ww-item-detail">
+          {entry.context && (
+            <p>
+              <span className="ww-detail-label">上下文</span>
+              {entry.context}
+            </p>
+          )}
+          {entry.example && (
+            <p>
+              <span className="ww-detail-label">例句</span>
+              {entry.example}
+            </p>
+          )}
+          {entry.sourceUrl && (
+            <p>
+              <span className="ww-detail-label">来源</span>
+              <a href={entry.sourceUrl} target="_blank" rel="noreferrer">
+                {entry.sourceTitle || entry.sourceUrl}
+              </a>
+            </p>
+          )}
+          <label className="ww-note">
+            <span className="ww-detail-label">备注</span>
+            <input
+              value={note}
+              onChange={(event) => setNote(event.target.value)}
+              onBlur={() => onSaveNote(note)}
+              placeholder="记点什么，方便以后回忆"
+            />
+          </label>
+        </div>
       )}
     </>
   );

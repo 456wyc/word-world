@@ -1,0 +1,198 @@
+:host {
+  all: initial;
+}
+
+* {
+  box-sizing: border-box;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'PingFang SC',
+    'Microsoft YaHei', sans-serif;
+}
+
+.ww-trigger {
+  position: fixed;
+  width: 26px;
+  height: 26px;
+  border: 0;
+  border-radius: 50%;
+  background: #0d9488;
+  color: #fff;
+  font-size: 12px;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+  pointer-events: auto;
+  z-index: 2;
+  user-select: none;
+}
+
+.ww-card {
+  position: fixed;
+  width: 320px;
+  max-height: 60vh;
+  overflow: auto;
+  background: #ffffff;
+  color: #1f2937;
+  border-radius: 10px;
+  box-shadow: 0 8px 28px rgba(15, 23, 42, 0.2);
+  padding: 12px 14px;
+  font-size: 13px;
+  line-height: 1.55;
+  pointer-events: auto;
+  z-index: 3;
+}
+
+.ww-card-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.ww-word-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.ww-word {
+  font-size: 18px;
+  color: #0f172a;
+}
+
+.ww-phonetic {
+  color: #64748b;
+  font-size: 12px;
+}
+
+.ww-icon-btn {
+  border: 0;
+  background: transparent;
+  color: #64748b;
+  cursor: pointer;
+  font-size: 13px;
+  padding: 2px;
+}
+
+.ww-icon-btn:hover {
+  color: #0f172a;
+}
+
+.ww-meta-line {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  color: #0d9488;
+  font-size: 12px;
+  margin: 6px 0;
+}
+
+.ww-link {
+  border: 0;
+  background: transparent;
+  color: #0d9488;
+  text-decoration: underline;
+  cursor: pointer;
+  padding: 0;
+  font-size: 12px;
+}
+
+.ww-senses {
+  margin: 8px 0;
+  padding-left: 18px;
+  color: #334155;
+}
+
+.ww-senses li {
+  margin-bottom: 4px;
+}
+
+.ww-pos {
+  color: #0d9488;
+  margin-right: 6px;
+  font-style: italic;
+}
+
+.ww-example {
+  margin: 8px 0;
+  padding: 8px 10px;
+  background: #f1f5f9;
+  border-radius: 6px;
+  color: #475569;
+  font-style: italic;
+}
+
+.ww-translation {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid #e2e8f0;
+  color: #0f172a;
+}
+
+.ww-card-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+  flex-wrap: wrap;
+}
+
+.ww-btn {
+  border: 1px solid #cbd5e1;
+  background: #f8fafc;
+  color: #334155;
+  border-radius: 6px;
+  padding: 4px 10px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.ww-btn:hover {
+  background: #f1f5f9;
+}
+
+.ww-btn-primary {
+  background: #0d9488;
+  border-color: #0d9488;
+  color: #fff;
+}
+
+.ww-btn-danger {
+  border-color: #fecaca;
+  color: #b91c1c;
+  background: #fef2f2;
+}
+
+.ww-card-error p {
+  margin: 6px 0;
+  color: #475569;
+}
+
+.ww-error-title {
+  color: #b91c1c;
+  font-weight: 600;
+}
+
+.ww-skeleton {
+  height: 12px;
+  border-radius: 4px;
+  background: #e2e8f0;
+  margin-bottom: 8px;
+  animation: ww-pulse 1.2s ease-in-out infinite;
+}
+
+.ww-skeleton-wide {
+  width: 80%;
+  height: 18px;
+}
+
+.ww-skeleton-short {
+  width: 50%;
+}
+
+@keyframes ww-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.45; }
+}

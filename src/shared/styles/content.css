@@ -219,3 +219,219 @@
   0%, 100% { opacity: 1; }
   50% { opacity: 0.45; }
 }
+
+/* Review overlay (Task 8) */
+
+.ww-overlay {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.ww-overlay > * {
+  pointer-events: auto;
+}
+
+.ww-subtitle {
+  position: fixed;
+  left: 50%;
+  transform: translateX(-50%);
+  max-width: min(720px, 90vw);
+  background: rgba(15, 23, 42, 0.92);
+  color: #e2e8f0;
+  border-radius: 10px;
+  padding: 10px 14px;
+  font-size: 14px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+  overflow: hidden;
+}
+
+.ww-subtitle.ww-bottom {
+  bottom: 48px;
+}
+
+.ww-subtitle.ww-top {
+  top: 48px;
+}
+
+.ww-progress {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 3px;
+  width: 100%;
+  background: #2dd4bf;
+  transform-origin: left;
+  animation-name: ww-progress;
+  animation-timing-function: linear;
+  animation-fill-mode: forwards;
+}
+
+@keyframes ww-progress {
+  from { transform: scaleX(1); }
+  to { transform: scaleX(0); }
+}
+
+.ww-subtitle-main {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.ww-subtitle-main strong {
+  color: #fff;
+  font-size: 16px;
+}
+
+.ww-subtitle-translation {
+  color: #cbd5e1;
+}
+
+.ww-subtitle-more {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(148, 163, 184, 0.35);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+  color: #cbd5e1;
+}
+
+.ww-subtitle-more .ww-pos {
+  color: #2dd4bf;
+}
+
+.ww-rating {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.ww-rate {
+  border: 0;
+  border-radius: 6px;
+  padding: 4px 12px;
+  font-size: 12px;
+  cursor: pointer;
+  color: #fff;
+}
+
+.ww-known {
+  background: #059669;
+}
+
+.ww-unsure {
+  background: #d97706;
+}
+
+.ww-unknown {
+  background: #dc2626;
+}
+
+.ww-barrage {
+  position: fixed;
+  bottom: 88px;
+  left: 100vw;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  max-width: 70vw;
+  background: rgba(15, 23, 42, 0.9);
+  color: #e2e8f0;
+  border-radius: 999px;
+  padding: 8px 16px;
+  font-size: 14px;
+  white-space: nowrap;
+  overflow: hidden;
+  animation-name: ww-barrage-move;
+  animation-timing-function: linear;
+  animation-fill-mode: forwards;
+  cursor: pointer;
+}
+
+.ww-barrage strong {
+  color: #fff;
+}
+
+.ww-barrage-actions {
+  display: flex;
+  align-items: center;
+}
+
+@keyframes ww-barrage-move {
+  from { transform: translateX(0); }
+  to { transform: translateX(-120vw); }
+}
+
+.ww-cardmode {
+  position: fixed;
+  width: 300px;
+  right: 20px;
+  background: #fff;
+  color: #1f2937;
+  border-radius: 10px;
+  padding: 12px 14px;
+  font-size: 13px;
+  box-shadow: 0 8px 28px rgba(15, 23, 42, 0.25);
+}
+
+.ww-cardmode.ww-bottom {
+  bottom: 20px;
+}
+
+.ww-cardmode.ww-top {
+  top: 20px;
+}
+
+.ww-cardmode-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.ww-cardmode-sense {
+  margin-top: 6px;
+  color: #334155;
+}
+
+.ww-skip {
+  position: fixed;
+  top: 12px;
+  right: 12px;
+  border: 0;
+  border-radius: 999px;
+  padding: 4px 12px;
+  background: rgba(15, 23, 42, 0.55);
+  color: #e2e8f0;
+  font-size: 12px;
+  cursor: pointer;
+  pointer-events: auto;
+}
+
+.ww-skip:hover {
+  background: rgba(15, 23, 42, 0.85);
+}
+
+.ww-toast {
+  position: fixed;
+  left: 50%;
+  bottom: 120px;
+  transform: translateX(-50%);
+  background: rgba(15, 23, 42, 0.92);
+  color: #fff;
+  border-radius: 999px;
+  padding: 6px 14px;
+  font-size: 12px;
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ww-progress,
+  .ww-skeleton {
+    animation: none;
+  }
+}

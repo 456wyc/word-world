@@ -23,8 +23,15 @@ describe('computeCardPosition', () => {
     expect(pos.left).toBe(1000 - size.width - 8);
   });
 
+  it('左侧越界时贴左边距', () => {
+    const pos = computeCardPosition({ top: 100, bottom: 120, left: -20, right: 10 }, viewport, size);
+    expect(pos.placement).toBe('below');
+    expect(pos.left).toBe(8);
+  });
+
   it('上下都放不下时贴底', () => {
     const pos = computeCardPosition({ top: 200, bottom: 700, left: 100, right: 200 }, viewport, size);
     expect(pos.top).toBe(800 - size.height - 8);
+    expect(pos.placement).toBe('above');
   });
 });

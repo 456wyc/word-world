@@ -37,6 +37,9 @@ export function SelectionLayer() {
     let timer: ReturnType<typeof setTimeout> | undefined;
 
     const onMouseUp = (event: MouseEvent) => {
+      // Only the primary button may start a lookup; a right/middle click
+      // should neither open the trigger nor cancel a pending one.
+      if (event.button !== 0) return;
       clearTimeout(timer);
       // `composedPath()` is only readable during dispatch, so resolve it now
       // instead of inside the debounce callback.
@@ -144,6 +147,7 @@ export function SelectionLayer() {
           onMouseDown={(event) => event.preventDefault()}
           onClick={openCard}
           title="查词 / 翻译"
+          aria-label="查词 / 翻译"
         >
           译
         </button>

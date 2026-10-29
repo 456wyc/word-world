@@ -17,6 +17,8 @@ type CardState =
   | { status: 'error'; message: string; code: ErrorCode };
 
 const INITIAL_SIZE = { width: 320, height: 220 };
+const LOOKUP_FAILED_MESSAGE = '无法连接扩展后台，请重试';
+const DELETE_FAILED_MESSAGE = '移出生词本失败，请重试';
 
 export function LookupCard({
   request,
@@ -28,7 +30,9 @@ export function LookupCard({
   const [state, setState] = useState<CardState>({ status: 'loading' });
   const [attempt, setAttempt] = useState(0);
   const [size, setSize] = useState(INITIAL_SIZE);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
   const ref = useRef<HTMLDivElement>(null);
+  const restoreFocusRef = useRef<HTMLElement | null>(null);
 
   // Content height changes between loading/ready/error. Measure after every
   // commit so a flipped ('above') card keeps its gap instead of overlapping
@@ -45,25 +49,56 @@ export function LookupCard({
     );
   });
 
+  // Move focus into the card (the dialog wrapper is focusable via tabIndex -1)
+  // and hand it back to wherever the user was when the card closes.
+  useEffect(() => {
+    const node = ref.current;
+    const root = node?.getRootNode();
+    const host = root instanceof ShadowRoot ? root.host : null;
+    const active = document.activeElement;
+    restoreFocusRef.current = active instanceof HTMLElement ? active : null;
+    node?.focus();
+    return () => {
+      if ('speechSynthesis' in window) window.speechSynthesis.cancel();
+      const previous = restoreFocusRef.current;
+      restoreFocusRef.current = null;
+      const current = document.activeElement;
+      // Only take focus back when it is still ours — clicking elsewhere on the
+      // page must keep the focus the user just moved.
+      const stillOurs = current === null || current === document.body || current === host;
+      if (previous?.isConnected && stillOurs) {
+        previous.focus({ preventScroll: true });
+      }
+    };
+  }, []);
+
   useEffect(() => {
     let alive = true;
     setState({ status: 'loading' });
+    setDeleteError(null);
     (async () => {
-      const result = await sendToBackground<LookupResponse>({
-        type: 'lookup',
-        payload: {
-          text: request.text,
-          context: request.context,
-          sourceUrl: request.sourceUrl,
-          sourceTitle: request.sourceTitle,
-        },
-      });
-      if (!alive) return;
-      setState(
-        result.ok
-          ? { status: 'ready', data: result.data }
-          : { status: 'error', message: result.error.message, code: result.error.code },
-      );
+      try {
+        const result = await sendToBackground<LookupResponse>({
+          type: 'lookup',
+          payload: {
+            text: request.text,
+            context: request.context,
+            sourceUrl: request.sourceUrl,
+            sourceTitle: request.sourceTitle,
+          },
+        });
+        if (!alive) return;
+        setState(
+          result.ok
+            ? { status: 'ready', data: result.data }
+            : { status: 'error', message: result.error.message, code: result.error.code },
+        );
+      } catch {
+        // `sendToBackground` retries once, then rejects if the service worker
+        // is gone. Without this the skeleton would stay up forever.
+        if (!alive) return;
+        setState({ status: 'error', message: LOOKUP_FAILED_MESSAGE, code: 'NETWORK' });
+      }
     })();
     return () => {
       alive = false;
@@ -90,8 +125,20 @@ export function LookupCard({
 
   const remove = async () => {
     if (state.status !== 'ready') return;
-    await sendToBackground({ type: 'words:delete', payload: { id: state.data.entry.id } });
-    onClose();
+    setDeleteError(null);
+    try {
+      const result = await sendToBackground<{ deleted: boolean }>({
+        type: 'words:delete',
+        payload: { id: state.data.entry.id },
+      });
+      if (!result.ok) {
+        setDeleteError(result.error.message || DELETE_FAILED_MESSAGE);
+        return;
+      }
+      onClose();
+    } catch {
+      setDeleteError(DELETE_FAILED_MESSAGE);
+    }
   };
 
   return (
@@ -101,32 +148,39 @@ export function LookupCard({
       style={{ top: position.top, left: position.left }}
       role="dialog"
       aria-label="查词结果"
+      tabIndex={-1}
     >
-      {state.status === 'loading' && (
-        <div className="ww-card-loading">
-          <div className="ww-skeleton ww-skeleton-wide" />
-          <div className="ww-skeleton" />
-          <div className="ww-skeleton ww-skeleton-short" />
-        </div>
-      )}
-
-      {state.status === 'error' && (
-        <div className="ww-card-error">
-          <div className="ww-error-title">查询失败</div>
-          <p>{state.message}</p>
-          <div className="ww-card-actions">
-            <button className="ww-btn" onClick={() => setAttempt((value) => value + 1)}>
-              重试
-            </button>
-            {state.code === 'CONFIG' && (
-              <button className="ww-btn ww-btn-primary" onClick={() => chrome.runtime.openOptionsPage()}>
-                去设置里配置 AI
-              </button>
-            )}
-            <button className="ww-btn" onClick={onClose}>
-              关闭
-            </button>
-          </div>
+      {state.status !== 'ready' && (
+        <div className="ww-status" aria-live="polite">
+          {state.status === 'loading' ? (
+            <div className="ww-card-loading">
+              <span className="ww-sr-only">正在查询…</span>
+              <div className="ww-skeleton ww-skeleton-wide" />
+              <div className="ww-skeleton" />
+              <div className="ww-skeleton ww-skeleton-short" />
+            </div>
+          ) : (
+            <div className="ww-card-error">
+              <div className="ww-error-title">查询失败</div>
+              <p>{state.message}</p>
+              <div className="ww-card-actions">
+                <button className="ww-btn" onClick={() => setAttempt((value) => value + 1)}>
+                  重试
+                </button>
+                {state.code === 'CONFIG' && (
+                  <button
+                    className="ww-btn ww-btn-primary"
+                    onClick={() => chrome.runtime.openOptionsPage()}
+                  >
+                    去设置里配置 AI
+                  </button>
+                )}
+                <button className="ww-btn" onClick={onClose} aria-label="关闭">
+                  关闭
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -142,13 +196,14 @@ export function LookupCard({
                 <button
                   className="ww-icon-btn"
                   title="发音"
+                  aria-label="发音"
                   onClick={() => speak(state.data.entry.text)}
                 >
                   🔊
                 </button>
               )}
             </div>
-            <button className="ww-icon-btn" title="关闭" onClick={onClose}>
+            <button className="ww-icon-btn" title="关闭" aria-label="关闭" onClick={onClose}>
               ✕
             </button>
           </div>
@@ -184,14 +239,23 @@ export function LookupCard({
             <div className="ww-translation">{state.data.entry.translation}</div>
           )}
 
+          <p className="ww-delete-error" aria-live="polite">
+            {deleteError}
+          </p>
+
           <div className="ww-card-actions">
             <button
               className="ww-btn"
+              aria-label="复制"
               onClick={() => copy(state.data.entry.translation || state.data.entry.text)}
             >
               复制
             </button>
-            <button className="ww-btn ww-btn-danger" onClick={remove}>
+            <button
+              className="ww-btn ww-btn-danger"
+              aria-label="移出生词本"
+              onClick={remove}
+            >
               移出生词本
             </button>
           </div>

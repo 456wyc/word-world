@@ -40,6 +40,22 @@ async function writeKey(key: string, value: unknown): Promise<void> {
   await chrome.storage.local.set({ [key]: value });
 }
 
+let writeChain: Promise<unknown> = Promise.resolve();
+
+function serialize<T>(task: () => Promise<T>): Promise<T> {
+  const run = writeChain.then(task, task);
+  writeChain = run.catch(() => undefined);
+  return run;
+}
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function isFiniteNumber(value: unknown): value is number {
+  return typeof value === 'number' && Number.isFinite(value);
+}
+
 function clampInt(value: unknown, fallback: number, min: number, max: number): number {
   if (typeof value !== 'number' || !Number.isFinite(value)) return fallback;
   return Math.min(max, Math.max(min, Math.round(value)));
@@ -90,18 +106,20 @@ export async function getSettings(): Promise<Settings> {
   return mergeSettings(await readKey<unknown>(STORAGE_KEYS.settings));
 }
 
-export async function updateSettings(patch: SettingsPatch): Promise<Settings> {
-  const current = await getSettings();
-  const next = mergeSettings({
-    provider: {
-      ...current.provider,
-      ...patch.provider,
-      ai: { ...current.provider.ai, ...patch.provider?.ai },
-    },
-    review: { ...current.review, ...patch.review },
+export function updateSettings(patch: SettingsPatch): Promise<Settings> {
+  return serialize(async () => {
+    const current = await getSettings();
+    const next = mergeSettings({
+      provider: {
+        ...current.provider,
+        ...patch.provider,
+        ai: { ...current.provider.ai, ...patch.provider?.ai },
+      },
+      review: { ...current.review, ...patch.review },
+    });
+    await writeKey(STORAGE_KEYS.settings, next);
+    return next;
   });
-  await writeKey(STORAGE_KEYS.settings, next);
-  return next;
 }
 
 export async function getPublicSettings(): Promise<PublicSettings> {
@@ -110,7 +128,13 @@ export async function getPublicSettings(): Promise<PublicSettings> {
 }
 
 export async function getEntriesMap(): Promise<EntryMap> {
-  return (await readKey<EntryMap>(STORAGE_KEYS.entries)) ?? {};
+  const raw = await readKey<unknown>(STORAGE_KEYS.entries);
+  if (!isPlainObject(raw)) return {};
+  const map: EntryMap = {};
+  for (const [id, entry] of Object.entries(raw)) {
+    if (isValidEntry(entry)) map[id] = entry;
+  }
+  return map;
 }
 
 async function writeEntriesMap(map: EntryMap): Promise<void> {
@@ -122,10 +146,12 @@ export async function getEntry(id: string): Promise<Entry | null> {
   return map[id] ?? null;
 }
 
-export async function saveEntry(entry: Entry): Promise<void> {
-  const map = await getEntriesMap();
-  map[entry.id] = entry;
-  await writeEntriesMap(map);
+export function saveEntry(entry: Entry): Promise<void> {
+  return serialize(async () => {
+    const map = await getEntriesMap();
+    map[entry.id] = entry;
+    await writeEntriesMap(map);
+  });
 }
 
 export async function listEntries(
@@ -141,7 +167,7 @@ export async function listEntries(
       (entry) =>
         entry.text.toLowerCase().includes(query) ||
         entry.translation.toLowerCase().includes(query) ||
-        (entry.note ?? '').toLowerCase().includes(query),
+        (typeof entry.note === 'string' ? entry.note : '').toLowerCase().includes(query),
     );
   }
   if (filter.kind) entries = entries.filter((entry) => entry.kind === filter.kind);
@@ -156,19 +182,23 @@ export async function listEntries(
   return entries;
 }
 
-export async function deleteEntry(id: string): Promise<boolean> {
-  const map = await getEntriesMap();
-  if (!map[id]) return false;
-  delete map[id];
-  await writeEntriesMap(map);
-  return true;
+export function deleteEntry(id: string): Promise<boolean> {
+  return serialize(async () => {
+    const map = await getEntriesMap();
+    if (!map[id]) return false;
+    delete map[id];
+    await writeEntriesMap(map);
+    return true;
+  });
 }
 
-export async function clearEntries(): Promise<void> {
-  await writeEntriesMap({});
+export function clearEntries(): Promise<void> {
+  return serialize(async () => {
+    await writeEntriesMap({});
+  });
 }
 
-export async function upsertLookup(
+export function upsertLookup(
   input: {
     id: string;
     text: string;
@@ -180,145 +210,165 @@ export async function upsertLookup(
   },
   now: number,
 ): Promise<{ entry: Entry; created: boolean }> {
-  const map = await getEntriesMap();
-  const needle = input.text.toLowerCase();
-  const existing = Object.values(map).find(
-    (entry) => entry.kind === input.kind && entry.text.toLowerCase() === needle,
-  );
+  return serialize(async () => {
+    const map = await getEntriesMap();
+    const needle = input.text.toLowerCase();
+    const existing = Object.values(map).find(
+      (entry) => entry.kind === input.kind && entry.text.toLowerCase() === needle,
+    );
 
-  if (existing) {
+    if (existing) {
+      const entry: Entry = {
+        ...existing,
+        translation: input.payload.translation || existing.translation,
+        phonetic: input.payload.phonetic ?? existing.phonetic,
+        senses: input.payload.senses ?? existing.senses,
+        example: input.payload.example ?? existing.example,
+        context: input.context ?? existing.context,
+        sourceUrl: input.sourceUrl ?? existing.sourceUrl,
+        sourceTitle: input.sourceTitle ?? existing.sourceTitle,
+        lookups: existing.lookups + 1,
+        updatedAt: now,
+        srs: { ...existing.srs, dueAt: Math.min(existing.srs.dueAt, now) },
+      };
+      map[entry.id] = entry;
+      await writeEntriesMap(map);
+      return { entry, created: false };
+    }
+
     const entry: Entry = {
-      ...existing,
-      translation: input.payload.translation || existing.translation,
-      phonetic: input.payload.phonetic ?? existing.phonetic,
-      senses: input.payload.senses ?? existing.senses,
-      example: input.payload.example ?? existing.example,
-      context: input.context ?? existing.context,
-      sourceUrl: input.sourceUrl ?? existing.sourceUrl,
-      sourceTitle: input.sourceTitle ?? existing.sourceTitle,
-      lookups: existing.lookups + 1,
+      id: input.id,
+      text: input.text,
+      kind: input.kind,
+      translation: input.payload.translation,
+      phonetic: input.payload.phonetic,
+      senses: input.payload.senses,
+      example: input.payload.example,
+      context: input.context,
+      sourceUrl: input.sourceUrl,
+      sourceTitle: input.sourceTitle,
+      createdAt: now,
       updatedAt: now,
-      srs: { ...existing.srs, dueAt: Math.min(existing.srs.dueAt, now) },
+      lookups: 1,
+      srs: createSrsState(now),
     };
     map[entry.id] = entry;
     await writeEntriesMap(map);
-    return { entry, created: false };
-  }
-
-  const entry: Entry = {
-    id: input.id,
-    text: input.text,
-    kind: input.kind,
-    translation: input.payload.translation,
-    phonetic: input.payload.phonetic,
-    senses: input.payload.senses,
-    example: input.payload.example,
-    context: input.context,
-    sourceUrl: input.sourceUrl,
-    sourceTitle: input.sourceTitle,
-    createdAt: now,
-    updatedAt: now,
-    lookups: 1,
-    srs: createSrsState(now),
-  };
-  map[entry.id] = entry;
-  await writeEntriesMap(map);
-  return { entry, created: true };
+    return { entry, created: true };
+  });
 }
 
 export async function getStats(now: number): Promise<Stats> {
-  const raw = await readKey<Stats>(STORAGE_KEYS.stats);
+  const raw = await readKey<unknown>(STORAGE_KEYS.stats);
   const date = localDateKey(now);
-  if (!raw || raw.date !== date) {
+  if (!isPlainObject(raw) || raw.date !== date) {
     return { date, shown: 0, reviewed: 0, added: 0 };
   }
   return {
     date,
-    shown: raw.shown ?? 0,
-    reviewed: raw.reviewed ?? 0,
-    added: raw.added ?? 0,
+    shown: isFiniteNumber(raw.shown) ? raw.shown : 0,
+    reviewed: isFiniteNumber(raw.reviewed) ? raw.reviewed : 0,
+    added: isFiniteNumber(raw.added) ? raw.added : 0,
   };
 }
 
-export async function bumpStat(
-  key: 'shown' | 'reviewed' | 'added',
-  now: number,
-): Promise<Stats> {
-  const stats = await getStats(now);
-  stats[key] += 1;
-  await writeKey(STORAGE_KEYS.stats, stats);
-  return stats;
+export function bumpStat(key: 'shown' | 'reviewed' | 'added', now: number): Promise<Stats> {
+  return serialize(async () => {
+    const stats = await getStats(now);
+    stats[key] += 1;
+    await writeKey(STORAGE_KEYS.stats, stats);
+    return stats;
+  });
 }
 
 export function trimCache(cache: CacheMap, max: number): CacheMap {
+  if (!isPlainObject(cache)) return {};
   const keys = Object.keys(cache);
   if (keys.length <= max) return cache;
   keys
-    .sort((a, b) => cache[a].cachedAt - cache[b].cachedAt)
+    .sort((a, b) => (cache[a]?.cachedAt ?? 0) - (cache[b]?.cachedAt ?? 0))
     .slice(0, keys.length - max)
     .forEach((key) => delete cache[key]);
   return cache;
 }
 
+function readCacheMap(raw: unknown): CacheMap {
+  if (!isPlainObject(raw)) return {};
+  const cache: CacheMap = {};
+  for (const [key, record] of Object.entries(raw)) {
+    if (!isPlainObject(record)) continue;
+    if (!isFiniteNumber(record.cachedAt)) continue;
+    if (!isPlainObject(record.result)) continue;
+    cache[key] = { result: record.result as unknown as LookupPayload, cachedAt: record.cachedAt };
+  }
+  return cache;
+}
+
 export async function getCached(key: string, now: number): Promise<LookupPayload | null> {
-  const cache = (await readKey<CacheMap>(STORAGE_KEYS.cache)) ?? {};
+  const cache = readCacheMap(await readKey<unknown>(STORAGE_KEYS.cache));
   const record = cache[key];
   if (!record || now - record.cachedAt > CACHE_TTL_MS) return null;
   return record.result;
 }
 
-export async function setCached(
+export function setCached(
   key: string,
   result: LookupPayload,
   now: number,
 ): Promise<void> {
-  const cache = (await readKey<CacheMap>(STORAGE_KEYS.cache)) ?? {};
-  cache[key] = { result, cachedAt: now };
-  await writeKey(STORAGE_KEYS.cache, trimCache(cache, CACHE_MAX_ENTRIES));
+  return serialize(async () => {
+    const cache = readCacheMap(await readKey<unknown>(STORAGE_KEYS.cache));
+    cache[key] = { result, cachedAt: now };
+    await writeKey(STORAGE_KEYS.cache, trimCache(cache, CACHE_MAX_ENTRIES));
+  });
 }
 
 export function isValidEntry(raw: unknown): raw is Entry {
-  if (!raw || typeof raw !== 'object') return false;
+  if (!isPlainObject(raw)) return false;
   const entry = raw as Record<string, any>;
   return (
     typeof entry.id === 'string' &&
+    entry.id.length > 0 &&
     typeof entry.text === 'string' &&
+    entry.text.length > 0 &&
     (entry.kind === 'word' || entry.kind === 'sentence') &&
     typeof entry.translation === 'string' &&
-    typeof entry.createdAt === 'number' &&
-    typeof entry.updatedAt === 'number' &&
+    isFiniteNumber(entry.createdAt) &&
+    isFiniteNumber(entry.updatedAt) &&
     typeof entry.lookups === 'number' &&
-    !!entry.srs &&
+    isPlainObject(entry.srs) &&
     typeof entry.srs.stage === 'number' &&
-    typeof entry.srs.dueAt === 'number' &&
+    isFiniteNumber(entry.srs.dueAt) &&
     typeof entry.srs.reps === 'number'
   );
 }
 
-export async function importEntries(
+export function importEntries(
   raw: unknown[],
   mode: 'merge' | 'replace',
 ): Promise<{ imported: number; skipped: number }> {
-  const map: EntryMap = mode === 'replace' ? {} : await getEntriesMap();
-  let imported = 0;
-  let skipped = 0;
+  return serialize(async () => {
+    const map: EntryMap = mode === 'replace' ? {} : await getEntriesMap();
+    let imported = 0;
+    let skipped = 0;
 
-  for (const candidate of raw) {
-    if (!isValidEntry(candidate)) {
-      skipped += 1;
-      continue;
+    for (const candidate of raw) {
+      if (!isValidEntry(candidate)) {
+        skipped += 1;
+        continue;
+      }
+      const existing = map[candidate.id];
+      if (existing && existing.updatedAt > candidate.updatedAt) {
+        skipped += 1;
+        continue;
+      }
+      map[candidate.id] = candidate;
+      imported += 1;
     }
-    const existing = map[candidate.id];
-    if (existing && existing.updatedAt > candidate.updatedAt) {
-      skipped += 1;
-      continue;
-    }
-    map[candidate.id] = candidate;
-    imported += 1;
-  }
 
-  await writeEntriesMap(map);
-  return { imported, skipped };
+    await writeEntriesMap(map);
+    return { imported, skipped };
+  });
 }
 
 export async function buildExport(now: number): Promise<ExportBundle> {

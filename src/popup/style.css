@@ -1,0 +1,97 @@
+body {
+  width: 320px;
+}
+
+.ww-popup {
+  padding: 14px 16px 16px;
+}
+
+.ww-popup-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.ww-popup-head h1 {
+  font-size: 16px;
+}
+
+.ww-badge {
+  background: #ccfbf1;
+  color: #0f766e;
+  border-radius: 999px;
+  padding: 2px 10px;
+  font-size: 12px;
+}
+
+.ww-stats {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.ww-stats > div {
+  flex: 1;
+  background: var(--ww-bg);
+  border-radius: 8px;
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+}
+
+.ww-stats strong {
+  font-size: 18px;
+}
+
+.ww-stats span {
+  color: var(--ww-muted);
+  font-size: 11px;
+}
+
+.ww-subhead {
+  font-size: 12px;
+  color: var(--ww-muted);
+  margin: 14px 0 6px;
+  font-weight: 600;
+}
+
+.ww-recent {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.ww-recent li {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  padding: 5px 0;
+  border-bottom: 1px dashed var(--ww-border);
+  font-size: 13px;
+}
+
+.ww-recent-word {
+  font-weight: 600;
+}
+
+.ww-recent-translation {
+  color: var(--ww-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ww-empty {
+  color: var(--ww-muted);
+}
+
+.ww-popup-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.ww-popup-actions .ww-btn {
+  flex: 1;
+}

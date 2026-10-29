@@ -69,7 +69,7 @@ export function extractContext(raw: string, selected: string, max = MAX_CONTEXT_
   const text = normalizeText(raw);
   const index = text.indexOf(normalizeText(selected));
   if (index < 0) return truncate(text, max);
-  const half = Math.floor((max - selected.length) / 2);
+  const half = Math.max(0, Math.floor((max - selected.length) / 2));
   const start = Math.max(0, index - half);
   return truncate(text.slice(start, index + selected.length + half), max);
 }

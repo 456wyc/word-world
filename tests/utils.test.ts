@@ -90,6 +90,25 @@ describe('extractContext', () => {
     expect(context).toContain('fox');
     expect(context.length).toBeLessThanOrEqual(30);
   });
+
+  it('居中截取而不是从文首截断', () => {
+    const pageText = 'PAGE '.repeat(20); // 选中词之前有 100 字符页面文本
+    const text = `${pageText}the quick brown fox jumps over the lazy dog near the river`;
+    const context = extractContext(text, 'fox', 40);
+    expect(context).toContain('brown fox');
+    expect(context.length).toBeLessThanOrEqual(40);
+    expect(context).not.toContain('PAGE');
+  });
+
+  it('选中内容超过上限时从选中位置开始截取', () => {
+    const selection = `START-${'x'.repeat(390)}-END`;
+    expect(selection).toHaveLength(400);
+    const text = `PAGE HEADER ${selection} trailing page text`;
+    const context = extractContext(text, selection);
+    expect(context).toBe(selection.slice(0, 300));
+    expect(context.startsWith('START-')).toBe(true);
+    expect(context).not.toContain('PAGE');
+  });
 });
 
 describe('containsCJK', () => {

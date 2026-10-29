@@ -35,10 +35,10 @@ import {
   upsertLookup,
 } from './storage';
 
-const RATINGS: readonly string[] = ['known', 'unsure', 'unknown'];
+const RATINGS = ['known', 'unsure', 'unknown'] as const satisfies readonly Rating[];
 
 function isRating(value: string): value is Rating {
-  return RATINGS.includes(value);
+  return (RATINGS as readonly string[]).includes(value);
 }
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {

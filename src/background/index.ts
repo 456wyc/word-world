@@ -4,7 +4,13 @@ import { isExtMessage } from '../shared/messages';
 import type { Result, ReviewMode } from '../shared/types';
 
 /** Message types a content script is allowed to send. Everything else is extension-page only. */
-const CONTENT_SCRIPT_ALLOWED = new Set<string>(['lookup', 'review:next', 'review:rate']);
+const CONTENT_SCRIPT_ALLOWED = new Set<string>([
+  'lookup',
+  'review:next',
+  'review:rate',
+  'settings:public',
+  'words:delete',
+]);
 
 function ensureSchemaSafe(): void {
   void ensureSchema().catch(() => undefined);

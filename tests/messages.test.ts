@@ -473,6 +473,50 @@ describe('isExtensionPage 与发送方鉴权', () => {
     expect(response).toMatchObject({ ok: true });
     expect(Object.values(await getEntriesMap())).toHaveLength(1);
   });
+
+  it('内容脚本可以读取公开设置且响应不含 apiKey', async () => {
+    store[STORAGE_KEYS.settings] = { provider: { mode: 'ai', ai: { apiKey: 'sk-secret' } } };
+    const { listener } = await loadBackground();
+    const response = await dispatch(listener, { type: 'settings:public', payload: {} }, {
+      url: 'https://example.com/a',
+      tab: { id: 3 } as chrome.tabs.Tab,
+    });
+    expect(response).toMatchObject({ ok: true });
+    const serialized = JSON.stringify(response);
+    expect(serialized).not.toContain('apiKey');
+    expect(serialized).not.toContain('sk-secret');
+    expect((response as { data: { review: { enabled: boolean } } }).data.review).toBeDefined();
+  });
+
+  it('内容脚本可以删除已有词条', async () => {
+    store[STORAGE_KEYS.entries] = { e1: makeEntry() };
+    const { listener } = await loadBackground();
+    const response = await dispatch(listener, { type: 'words:delete', payload: { id: 'e1' } }, {
+      url: 'https://example.com/a',
+      tab: { id: 3 } as chrome.tabs.Tab,
+    });
+    expect(response).toMatchObject({ ok: true, data: { deleted: true } });
+    expect(await getEntriesMap()).toEqual({});
+  });
+
+  it('内容脚本仍被拒绝其他特权消息', async () => {
+    store[STORAGE_KEYS.entries] = { e1: makeEntry() };
+    const { listener } = await loadBackground();
+    const sender = { url: 'https://example.com/a', tab: { id: 3 } as chrome.tabs.Tab };
+    const forbidden: ExtMessage[] = [
+      { type: 'settings:get', payload: {} },
+      { type: 'settings:update', payload: {} },
+      { type: 'provider:test', payload: {} },
+      { type: 'words:import', payload: { entries: [], mode: 'merge' } },
+      { type: 'words:clear', payload: {} },
+      { type: 'words:export', payload: {} },
+    ];
+    for (const message of forbidden) {
+      const response = await dispatch(listener, message, sender);
+      expect(response).toMatchObject({ ok: false, error: { code: 'FORBIDDEN' } });
+    }
+    expect(await getEntriesMap()).toHaveProperty('e1');
+  });
 });
 
 describe('previewActiveTab', () => {

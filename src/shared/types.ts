@@ -104,6 +104,7 @@ export interface ExportBundle {
 export type ErrorCode =
   | 'INVALID_PAYLOAD'
   | 'NOT_FOUND'
+  | 'FORBIDDEN'
   | 'NETWORK'
   | 'RATE_LIMIT'
   | 'CONFIG'

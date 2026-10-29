@@ -2,11 +2,22 @@ import { vi } from 'vitest';
 
 type Store = Record<string, unknown>;
 
+export type MessageListener = (
+  message: unknown,
+  sender: chrome.runtime.MessageSender,
+  sendResponse: (response?: unknown) => void,
+) => boolean | undefined;
+
+type EventListener = (...args: unknown[]) => void;
+
 export function installChromeMock(initial: Store = {}) {
   const store: Store = structuredClone(initial);
   const listeners: Array<
     (changes: Record<string, chrome.storage.StorageChange>, area: string) => void
   > = [];
+  const messageListeners: MessageListener[] = [];
+  const installedListeners: EventListener[] = [];
+  const startupListeners: EventListener[] = [];
 
   const local = {
     get: vi.fn(async (keys?: string | string[] | null) => {
@@ -33,6 +44,42 @@ export function installChromeMock(initial: Store = {}) {
     }),
   };
 
+  const runtime = {
+    onMessage: {
+      addListener: vi.fn((listener: MessageListener) => {
+        messageListeners.push(listener);
+      }),
+      removeListener: vi.fn((listener: MessageListener) => {
+        const index = messageListeners.indexOf(listener);
+        if (index >= 0) messageListeners.splice(index, 1);
+      }),
+      listeners: messageListeners,
+    },
+    onInstalled: {
+      addListener: vi.fn((listener: EventListener) => {
+        installedListeners.push(listener);
+      }),
+      listeners: installedListeners,
+    },
+    onStartup: {
+      addListener: vi.fn((listener: EventListener) => {
+        startupListeners.push(listener);
+      }),
+      listeners: startupListeners,
+    },
+    sendMessage: vi.fn(async (_message: unknown): Promise<unknown> => undefined),
+    getURL: vi.fn(
+      (path = ''): string => `chrome-extension://test-extension-id/${path.replace(/^\/+/, '')}`,
+    ),
+  };
+
+  const tabs = {
+    query: vi.fn(async (_queryInfo?: chrome.tabs.QueryInfo): Promise<chrome.tabs.Tab[]> => []),
+    sendMessage: vi.fn(
+      async (_tabId: number, _message: unknown): Promise<unknown> => undefined,
+    ),
+  };
+
   vi.stubGlobal('chrome', {
     storage: {
       local,
@@ -44,7 +91,9 @@ export function installChromeMock(initial: Store = {}) {
         }),
       },
     },
+    runtime,
+    tabs,
   });
 
-  return { store, local };
+  return { store, local, runtime, tabs };
 }

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { createSrsState, nextIntervalMs, pickNext, rateEntry } from '../src/background/srs';
-import type { Entry } from '../src/shared/types';
+import type { Entry, EntryKind } from '../src/shared/types';
 
 const NOW = 1_700_000_000_000;
 
@@ -61,6 +61,47 @@ describe('rateEntry', () => {
     const entry = makeEntry({ kind: 'sentence', srs: { ...createSrsState(NOW), stage: 3 } });
     expect(rateEntry(entry, 'known', NOW).srs.dueAt).toBe(NOW + 15 * 86_400_000);
   });
+
+  it('stage 0 不认识仍为 0，累计 lapses，10 分钟后到期', () => {
+    const entry = makeEntry({ srs: { ...createSrsState(NOW), stage: 0, lapses: 0 } });
+    const next = rateEntry(entry, 'unknown', NOW);
+    expect(next.srs.stage).toBe(0);
+    expect(next.srs.lapses).toBe(1);
+    expect(next.srs.dueAt).toBe(NOW + 10 * 60_000);
+    expect(next.updatedAt).toBe(NOW);
+  });
+
+  it('不修改传入的条目', () => {
+    const entry = makeEntry({
+      srs: { ...createSrsState(NOW), stage: 2, reps: 3, knownStreak: 2 },
+    });
+    const snapshot = structuredClone(entry);
+
+    const next = rateEntry(entry, 'known', NOW);
+
+    expect(entry).toEqual(snapshot);
+    expect(entry.srs).toEqual(snapshot.srs);
+    expect(entry.updatedAt).toBe(snapshot.updatedAt);
+    expect(next).not.toBe(entry);
+    expect(next.srs).not.toBe(entry.srs);
+  });
+
+  // [kind, stage before 认识, 期望间隔天数]
+  const LADDER: Array<[EntryKind, number, number]> = [
+    ['word', 2, 7],
+    ['word', 3, 16],
+    ['word', 4, 35],
+    ['sentence', 0, 1],
+    ['sentence', 1, 4],
+    ['sentence', 2, 15],
+  ];
+
+  it.each(LADDER)('%s 从 stage %d 认识后按 %d 天安排', (kind, from, days) => {
+    const entry = makeEntry({ kind, srs: { ...createSrsState(NOW), stage: from } });
+    const next = rateEntry(entry, 'known', NOW);
+    expect(next.srs.stage).toBe(from + 1);
+    expect(next.srs.dueAt).toBe(NOW + days * 86_400_000);
+  });
 });
 
 describe('pickNext', () => {
@@ -75,11 +116,26 @@ describe('pickNext', () => {
     const notDue = makeEntry({ id: 'b', srs: { ...createSrsState(NOW), dueAt: NOW + 1000 } });
     expect(pickNext([due, notDue], NOW, ['a'])).toBeNull();
   });
+
+  it('跳过 recentIds 中更早到期的条目，返回次早的到期条目', () => {
+    const moreOverdue = makeEntry({ id: 'recent', srs: { ...createSrsState(NOW), dueAt: NOW - 10_000 } });
+    const lessOverdue = makeEntry({ id: 'candidate', srs: { ...createSrsState(NOW), dueAt: NOW - 1000 } });
+
+    const picked = pickNext([moreOverdue, lessOverdue], NOW, ['recent']);
+
+    expect(picked).not.toBeNull();
+    expect(picked?.id).toBe('candidate');
+  });
 });
 
 describe('nextIntervalMs', () => {
   it('越界 stage 取最大档', () => {
     expect(nextIntervalMs('word', 99)).toBe(35 * 86_400_000);
     expect(nextIntervalMs('sentence', 99)).toBe(15 * 86_400_000);
+  });
+
+  it('范围内的中间档位返回对应间隔', () => {
+    expect(nextIntervalMs('word', 3)).toBe(7 * 86_400_000);
+    expect(nextIntervalMs('sentence', 2)).toBe(4 * 86_400_000);
   });
 });

@@ -5,6 +5,21 @@ import { freeLookup, translateText } from '../src/background/providers/free';
 import { DEFAULT_SETTINGS } from '../src/shared/constants';
 import type { Settings } from '../src/shared/types';
 
+const storageWrites = vi.hoisted(() => ({ fail: false, calls: 0 }));
+
+vi.mock('../src/background/storage', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../src/background/storage')>();
+  return {
+    ...actual,
+    setCached: (...args: Parameters<typeof actual.setCached>) => {
+      storageWrites.calls += 1;
+      return storageWrites.fail
+        ? Promise.reject(new Error('storage write failed'))
+        : actual.setCached(...args);
+    },
+  };
+});
+
 function json(data: unknown, status = 200): Response {
   return new Response(JSON.stringify(data), { status });
 }
@@ -266,5 +281,65 @@ describe('resolveLookup', () => {
     await expect(resolveLookup('hello', undefined, DEFAULT_SETTINGS)).rejects.toMatchObject({
       code: 'RATE_LIMIT',
     });
+  });
+
+  it('AI 接口限流时回退 free 并标记 rate-limit', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = String(input);
+        if (url.includes('chat/completions')) return json({}, 429);
+        return url.includes('dictionaryapi') ? json(DICT) : json(GOOGLE);
+      }),
+    );
+    const result = await resolveLookup('hello', undefined, aiSettings);
+    expect(result.provider).toBe('free');
+    expect(result.fallbackReason).toBe('rate-limit');
+    expect(result.payload.translation).toBe('你好');
+    expect(result.payload.senses).toEqual([{ pos: 'exclamation', def: 'used as a greeting' }]);
+  });
+
+  it('缓存写入失败不影响查询结果', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL) =>
+        String(input).includes('dictionaryapi') ? json(DICT) : json(GOOGLE),
+      ),
+    );
+    storageWrites.fail = true;
+    const writesBefore = storageWrites.calls;
+    try {
+      const result = await resolveLookup('hello', undefined, DEFAULT_SETTINGS);
+      expect(storageWrites.calls).toBe(writesBefore + 1);
+      expect(result.provider).toBe('free');
+      expect(result.cached).toBe(false);
+      expect(result.payload.translation).toBe('你好');
+      expect(result.payload.phonetic).toBe('/həˈləʊ/');
+    } finally {
+      storageWrites.fail = false;
+    }
+  });
+
+  it('译文为空的 payload 不写入缓存，下次重新请求', async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes('dictionaryapi')) return json(DICT);
+      if (url.includes('mymemory')) {
+        return json({ responseStatus: 200, responseData: { translatedText: '' } });
+      }
+      return json({}, 503);
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const first = await resolveLookup('hello', undefined, DEFAULT_SETTINGS);
+    expect(first.cached).toBe(false);
+    expect(first.payload.translation).toBe('');
+    expect(first.payload.senses).toHaveLength(1);
+
+    const callsAfterFirst = fetchMock.mock.calls.length;
+    const second = await resolveLookup('hello', undefined, DEFAULT_SETTINGS);
+    expect(second.cached).toBe(false);
+    expect(second.payload.translation).toBe('');
+    expect(fetchMock.mock.calls.length).toBe(callsAfterFirst * 2);
   });
 });

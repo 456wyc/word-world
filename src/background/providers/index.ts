@@ -22,6 +22,16 @@ export interface LookupOutcome {
   fallbackReason: FallbackReason;
 }
 
+/**
+ * A cache write is best-effort: it must never turn a successful lookup into an error.
+ * Payloads without a translation (dictionary hit, both translation routes failed) are
+ * deliberately not cached so the next lookup retries the translation.
+ */
+async function cachePayload(key: string, payload: LookupPayload, now: number): Promise<void> {
+  if (!payload.translation.trim()) return;
+  await setCached(key, payload, now).catch(() => undefined);
+}
+
 async function fallbackToFree(
   text: string,
   kind: EntryKind,
@@ -29,7 +39,7 @@ async function fallbackToFree(
   now: number,
 ): Promise<LookupOutcome> {
   const payload = await freeLookup(text, kind);
-  await setCached(`free:${text.toLowerCase()}`, payload, now);
+  await cachePayload(`free:${text.toLowerCase()}`, payload, now);
   return { payload, provider: 'free', cached: false, fallbackReason: reason };
 }
 
@@ -55,13 +65,15 @@ export async function resolveLookup(
     }
     try {
       const payload = await aiLookup(text, kind, context, settings.provider.ai);
-      await setCached(cacheKey, payload, now);
+      await cachePayload(cacheKey, payload, now);
       return { payload, provider: 'ai', cached: false, fallbackReason: null };
-    } catch {
+    } catch (error) {
+      const reason: FallbackReason =
+        error instanceof ProviderError && error.code === 'RATE_LIMIT' ? 'rate-limit' : 'ai-error';
       try {
-        return await fallbackToFree(text, kind, 'ai-error', now);
-      } catch (error) {
-        if (error instanceof ProviderError) throw error;
+        return await fallbackToFree(text, kind, reason, now);
+      } catch (fallbackError) {
+        if (fallbackError instanceof ProviderError) throw fallbackError;
         throw new ProviderError('NETWORK', '查询失败，请稍后重试');
       }
     }
@@ -69,7 +81,7 @@ export async function resolveLookup(
 
   try {
     const payload = await freeLookup(text, kind);
-    await setCached(cacheKey, payload, now);
+    await cachePayload(cacheKey, payload, now);
     return { payload, provider: 'free', cached: false, fallbackReason: null };
   } catch (error) {
     if (error instanceof ProviderError) throw error;
